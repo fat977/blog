@@ -1,0 +1,161 @@
+<?php
+
+namespace App\Http\Controllers\Admin\Cms\Page;
+
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\Page\PageStoreRequest;
+use App\Http\Requests\Admin\Page\PageUpdateRequest;
+use App\Models\Page;
+use App\Traits\ImageTrait;
+use Illuminate\Auth\Events\Validated;
+use Illuminate\Support\Facades\Storage;
+
+class PageController extends Controller
+{
+    use ImageTrait;
+
+    public function index()
+    {
+        $pages = Page::query()->paginate(5);
+        return view('admin.cms.pages.index', compact('pages'));
+    }
+
+    /**
+     * Show the form for creating a new resource.
+     */
+    public function create()
+    {
+        return view('admin.cms.pages.create');
+    }
+
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(PageStoreRequest $request)
+    {
+
+        $validated = $request->validated();
+
+        // add slug
+        $validated['slug'] = Page::generateSlug($validated['title']);
+
+        // store image
+        // if ($request->hasFile('image')) {
+        //     $validated['image'] = $this->uploadImage($request->file('image'), 'public/pages');
+        // }
+
+        Page::query()->create([
+            'is_in_footer' => array_key_exists('is_in_footer', $validated) && $validated['is_in_footer'] == 'on' ? true : false,
+            'is_in_menu' => array_key_exists('is_in_menu', $validated) && $validated['is_in_menu'] == 'on' ? true : false,
+            'is_active' => array_key_exists('is_active', $validated) && $validated['is_active'] == 'on' ? true : false,
+            // 'image' => $validated['image'] ?? null,
+            'slug' => $validated['slug'],
+            'title' => $validated['title'],
+            'content' => $validated['content'],
+
+        ]);
+
+        //Page::query()->create($validated);
+
+        return redirect()->route('admin.pages.index')
+            ->with('success', __('admin/CMS/page/page.messages.create'));
+    }
+
+    public function show($slug)
+    {
+
+        $page = Page::query()->where('slug', '=', $slug)->firstOrFail();
+
+        return view('admin.cms.pages.show', compact('page'));
+    }
+
+    /**
+     * Show the form for editing the specified resource.
+     */
+    public function edit($id)
+    {
+        $page = Page::query()->find($id);
+
+        if (!$page) {
+            return redirect()->route('admin.pages.index')
+                ->with('error', __('admin/CMS/page/page.messages.failed_edit'));
+        }
+
+        return view('admin.cms.pages.edit', compact('page'));
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(PageUpdateRequest $request, $id)
+    {
+        $page = Page::query()->find($id);
+
+        if (!$page) {
+            return redirect()->route('admin.pages.index')
+                ->with('error', __('admin/CMS/page/page.messages.failed_edit'));
+        }
+
+        $validated = $request->validated();
+
+        // add slug
+        $validated['slug'] = Page::generateSlug($validated['title']);
+
+        // store image
+        // if ($request->hasFile('image')) {
+        //     if ($page->image) {
+        //         //Remove old image
+        //         Storage::disk('local')->delete('public/pages/' . $page->image);
+        //     }
+        //     $validated['image'] = $this->uploadImage($request->file('image'), 'public/pages');
+        // }
+
+        $page->update([
+            'is_in_footer' => array_key_exists('is_in_footer', $validated) && $validated['is_in_footer'] == 'on' ? true : false,
+            'is_in_menu' => array_key_exists('is_in_menu', $validated) && $validated['is_in_menu'] == 'on' ? true : false,
+            'is_active' => array_key_exists('is_active', $validated) && $validated['is_active'] == 'on' ? true : false,
+            // 'image' => $validated['image'] ?? null,
+            'slug' => $validated['slug'],
+            'title' => $validated['title'],
+            'content' => $validated['content'],
+
+        ]);
+
+        //$page->update($validated);
+
+        return redirect()->route('admin.pages.index')
+            ->with('success', __('admin/CMS/page/page.messages.edit'));
+    }
+
+    /**
+     * Remove the specified resource from storage.
+     */
+    public function destroy($id)
+    {
+        $page = Page::query()->find($id);
+
+        if (!$page) {
+            return redirect()->route('admin.pages.index')
+                ->with('error', __('admin/CMS/page/page.messages.failed_delete'));
+        }
+
+        $page->delete();
+
+        if ($page->image != null) {
+            Storage::disk('local')->delete('public/pages/' . $page->image);
+        }
+
+        return redirect()->route('admin.pages.index')
+            ->with('success', __('admin/CMS/page/page.messages.delete'));
+    }
+
+    public function changeActive(Page $page)
+    {
+        $page->update([
+            'is_active' => !$page->is_active,
+        ]);
+
+        return redirect()->back()
+            ->with('success', __('admin/CMS/page/page.messages.edit'));
+    }
+}
